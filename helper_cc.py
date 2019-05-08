@@ -194,7 +194,7 @@ class HelperUCC4(object):
         temp = 0.5 * np.einsum('jlbd,ijab,ikac,cdkl->', t_ijab, t_ijab, t_ijab, self.MO[v, v, o, o])
         temp += 0.0625 * np.einsum('ijab,klcd,ijcd,abkl->', t_ijab, t_ijab, t_ijab, self.MO[v, v, o, o])
         temp -= 0.25 * np.einsum('klcd,ijab,ijac,bdkl->', t_ijab, t_ijab, t_ijab, self.MO[v, v, o, o])
-        #temp -= 0.25 * np.einsum('klcd,ijab,ikab,cdjl->', t_ijab, t_ijab, t_ijab, self.MO[v, v, o, o])
+        temp -= 0.25 * np.einsum('klcd,ijab,ikab,cdjl->', t_ijab, t_ijab, t_ijab, self.MO[v, v, o, o])
         #temp += 0.5 * np.einsum('klcd,ijab,jkcd,bdil->', t_ijab, t_ijab, t_ijab, self.MO[v, v, o, o])
         #temp += 0.5 * np.einsum('klcd,ijab,ikcb,adjl->', t_ijab, t_ijab, t_ijab, self.MO[v, v, o, o])
         E_corr -= 0.25 * temp
