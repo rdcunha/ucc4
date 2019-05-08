@@ -154,19 +154,8 @@ class HelperUCC4(object):
         Rijab += 0.5 * np.einsum('klcd,ilcd,abjk->ijab', t_ijab, t_ijab, self.MO[v, v, o, o])
 
         # New T3s
-        # P^(c/ab)_(i/jk) t_ilab <lc||jk>
-        Rijkabc = ndot('ilab,lcjk->ijkabc', t_ijab, self.MO[o, v, o, o])
-        Rijkabc -= ndot('jlab,lcik->ijkabc', t_ijab, self.MO[o, v, o, o])
-        Rijkabc -= ndot('klab,lcji->ijkabc', t_ijab, self.MO[o, v, o, o])
-        Rijkabc -= ndot('ilcb,lajk->ijkabc', t_ijab, self.MO[o, v, o, o])
-        Rijkabc += ndot('jlcb,laik->ijkabc', t_ijab, self.MO[o, v, o, o])
-        Rijkabc += ndot('klcb,laji->ijkabc', t_ijab, self.MO[o, v, o, o])
-        Rijkabc -= ndot('ilac,lbjk->ijkabc', t_ijab, self.MO[o, v, o, o])
-        Rijkabc += ndot('jlac,lbik->ijkabc', t_ijab, self.MO[o, v, o, o])
-        Rijkabc += ndot('klac,lbji->ijkabc', t_ijab, self.MO[o, v, o, o])
-
         # P^(a/bc)_(k/ij) t_ijad <bc||dk>
-        Rijkabc += ndot('ijad,bcdk->ijkabc', t_ijab, self.MO[v, v, v, o])
+        Rijkabc = ndot('ijad,bcdk->ijkabc', t_ijab, self.MO[v, v, v, o])
         Rijkabc -= ndot('kjad,bcdi->ijkabc', t_ijab, self.MO[v, v, v, o])
         Rijkabc -= ndot('ikad,bcdj->ijkabc', t_ijab, self.MO[v, v, v, o])
         Rijkabc -= ndot('ijbd,acdk->ijkabc', t_ijab, self.MO[v, v, v, o])
@@ -175,6 +164,17 @@ class HelperUCC4(object):
         Rijkabc -= ndot('ijcd,badk->ijkabc', t_ijab, self.MO[v, v, v, o])
         Rijkabc += ndot('kjcd,badi->ijkabc', t_ijab, self.MO[v, v, v, o])
         Rijkabc += ndot('ikcd,badj->ijkabc', t_ijab, self.MO[v, v, v, o])
+
+        # - P^(c/ab)_(i/jk) t_ilab <lc||jk>
+        Rijkabc -= ndot('ilab,lcjk->ijkabc', t_ijab, self.MO[o, v, o, o])
+        Rijkabc += ndot('jlab,lcik->ijkabc', t_ijab, self.MO[o, v, o, o])
+        Rijkabc += ndot('klab,lcji->ijkabc', t_ijab, self.MO[o, v, o, o])
+        Rijkabc += ndot('ilcb,lajk->ijkabc', t_ijab, self.MO[o, v, o, o])
+        Rijkabc -= ndot('jlcb,laik->ijkabc', t_ijab, self.MO[o, v, o, o])
+        Rijkabc -= ndot('klcb,laji->ijkabc', t_ijab, self.MO[o, v, o, o])
+        Rijkabc += ndot('ilac,lbjk->ijkabc', t_ijab, self.MO[o, v, o, o])
+        Rijkabc -= ndot('jlac,lbik->ijkabc', t_ijab, self.MO[o, v, o, o])
+        Rijkabc -= ndot('klac,lbji->ijkabc', t_ijab, self.MO[o, v, o, o])
 
         # Apply denominators
         #new_tia =  t_ia.copy() 
@@ -191,12 +191,13 @@ class HelperUCC4(object):
         o = slice(0, self.no_occ)
         v = slice(self.no_occ, self.no_mo)
         E_corr = ndot('ijab,ijab->', t_ijab, self.MO[o, o, v, v], prefactor=0.25)
-        E_corr += 0.5 * np.einsum('jlbd,ijab,ikac,cdkl->', t_ijab, t_ijab, t_ijab, self.MO[v, v, o, o])
-        E_corr += 0.0625 * np.einsum('ijab,klcd,ijcd,abkl->', t_ijab, t_ijab, t_ijab, self.MO[v, v, o, o])
-        E_corr -= 0.25 * np.einsum('klcd,ijab,ijac,bdkl->', t_ijab, t_ijab, t_ijab, self.MO[v, v, o, o])
-        E_corr -= 0.25 * np.einsum('klcd,ijab,ikab,cdjl->', t_ijab, t_ijab, t_ijab, self.MO[v, v, o, o])
-        E_corr += 0.5 * np.einsum('klcd,ijab,jkcd,bdil->', t_ijab, t_ijab, t_ijab, self.MO[v, v, o, o])
-        E_corr += 0.5 * np.einsum('klcd,ijab,ikcb,adjl->', t_ijab, t_ijab, t_ijab, self.MO[v, v, o, o])
+        temp = 0.5 * np.einsum('jlbd,ijab,ikac,cdkl->', t_ijab, t_ijab, t_ijab, self.MO[v, v, o, o])
+        temp += 0.0625 * np.einsum('ijab,klcd,ijcd,abkl->', t_ijab, t_ijab, t_ijab, self.MO[v, v, o, o])
+        temp -= 0.25 * np.einsum('klcd,ijab,ijac,bdkl->', t_ijab, t_ijab, t_ijab, self.MO[v, v, o, o])
+        #temp -= 0.25 * np.einsum('klcd,ijab,ikab,cdjl->', t_ijab, t_ijab, t_ijab, self.MO[v, v, o, o])
+        #temp += 0.5 * np.einsum('klcd,ijab,jkcd,bdil->', t_ijab, t_ijab, t_ijab, self.MO[v, v, o, o])
+        #temp += 0.5 * np.einsum('klcd,ijab,ikcb,adjl->', t_ijab, t_ijab, t_ijab, self.MO[v, v, o, o])
+        E_corr -= 0.25 * temp
         return E_corr
 
     def do_CC(self, e_conv=1e-8, r_conv=1e-7, maxiter=40):
