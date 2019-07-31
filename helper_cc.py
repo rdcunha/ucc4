@@ -7,6 +7,9 @@ import numpy as np
 import psi4
 from ndot import ndot
 from diis import *
+from opt_einsum import contract
+
+import time
 
 class HelperUCC4(object):
     def __init__(self, wfn):
@@ -39,7 +42,7 @@ class HelperUCC4(object):
         # Make MO integrals
         self.MO = np.asarray(mints.mo_spin_eri(C, C))
 
-        self.H = np.einsum('uj, vi, uv', C, C, self.H)
+        self.H = contract('uj, vi, uv', C, C, self.H)
         
         # Tile eps, H for alpha and beta spins
         self.eps = np.repeat(self.eps, 2)
@@ -54,7 +57,7 @@ class HelperUCC4(object):
         #self.MO = self.MO.swapaxes(1, 2)
 
         # Build Fock matrix
-        self.F = self.H + np.einsum('pmqm->pq', self.MO[:, o, :, o])
+        self.F = self.H + contract('pmqm->pq', self.MO[:, o, :, o])
 
         # Need F_occ and F_vir separate (will need F_vir for semi-canonical basis later)
         self.F_occ = self.F[o, o]
@@ -120,41 +123,44 @@ class HelperUCC4(object):
         Rijab -= ndot('iklabc,kljc->ijab', t_ijkabc, self.MO[o, o, o, v], prefactor=0.5)
         Rijab += ndot('jklabc,klic->ijab', t_ijkabc, self.MO[o, o, o, v], prefactor=0.5)
 
+        t0 = time.time()
         # 1/4 P_ab P_ij t_ikac t_jlbd <kl||cd>
-        Rijab += 0.25 * np.einsum('ikac,jlbd,klcd->ijab', t_ijab, t_ijab, self.MO[o, o, v, v])
-        Rijab -= 0.25 * np.einsum('jkac,ilbd,klcd->ijab', t_ijab, t_ijab, self.MO[o, o, v, v])
-        Rijab -= 0.25 * np.einsum('ikbc,jlad,klcd->ijab', t_ijab, t_ijab, self.MO[o, o, v, v])
-        Rijab += 0.25 * np.einsum('jkbc,ilad,klcd->ijab', t_ijab, t_ijab, self.MO[o, o, v, v])
+        Rijab += 0.25 * contract('ikac,jlbd,klcd->ijab', t_ijab, t_ijab, self.MO[o, o, v, v])
+        Rijab -= 0.25 * contract('jkac,ilbd,klcd->ijab', t_ijab, t_ijab, self.MO[o, o, v, v])
+        Rijab -= 0.25 * contract('ikbc,jlad,klcd->ijab', t_ijab, t_ijab, self.MO[o, o, v, v])
+        Rijab += 0.25 * contract('jkbc,ilad,klcd->ijab', t_ijab, t_ijab, self.MO[o, o, v, v])
         # - 1/4 P_ij t_ikab t_jlcd <kl||cd>
-        Rijab -= 0.25 * np.einsum('ikab,jlcd,klcd->ijab', t_ijab, t_ijab, self.MO[o, o, v, v])
-        Rijab += 0.25 * np.einsum('jkab,ilcd,klcd->ijab', t_ijab, t_ijab, self.MO[o, o, v, v])
+        Rijab -= 0.25 * contract('ikab,jlcd,klcd->ijab', t_ijab, t_ijab, self.MO[o, o, v, v])
+        Rijab += 0.25 * contract('jkab,ilcd,klcd->ijab', t_ijab, t_ijab, self.MO[o, o, v, v])
         # - 1/4 P_ab t_ijac t_klbd <kl||cd>
-        Rijab -= 0.25 * np.einsum('ijac,klbd,klcd->ijab', t_ijab, t_ijab, self.MO[o, o, v, v])
-        Rijab += 0.25 * np.einsum('ijbc,klad,klcd->ijab', t_ijab, t_ijab, self.MO[o, o, v, v])
+        Rijab -= 0.25 * contract('ijac,klbd,klcd->ijab', t_ijab, t_ijab, self.MO[o, o, v, v])
+        Rijab += 0.25 * contract('ijbc,klad,klcd->ijab', t_ijab, t_ijab, self.MO[o, o, v, v])
         # + 1/8 t_ijcd t_klab <kl||cd>
-        Rijab += 0.125 * np.einsum('ijcd,klab,klcd->ijab', t_ijab, t_ijab, self.MO[o, o, v, v])
+        Rijab += 0.125 * contract('ijcd,klab,klcd->ijab', t_ijab, t_ijab, self.MO[o, o, v, v])
+        t1 = time.time()
+        print("Time: {}".format(t1-t0))
 
         # 1/2 P_ij P_ab t_ikac t_klcd <db||lj>
-        Rijab += 0.5 * np.einsum('ikac,klcd,dblj->ijab', t_ijab, t_ijab, self.MO[v, v, o, o])
-        Rijab -= 0.5 * np.einsum('jkac,klcd,dbli->ijab', t_ijab, t_ijab, self.MO[v, v, o, o])
-        Rijab -= 0.5 * np.einsum('ikbc,klcd,dalj->ijab', t_ijab, t_ijab, self.MO[v, v, o, o])
-        Rijab += 0.5 * np.einsum('jkbc,klcd,dali->ijab', t_ijab, t_ijab, self.MO[v, v, o, o])
+        Rijab += 0.5 * contract('ikac,klcd,dblj->ijab', t_ijab, t_ijab, self.MO[v, v, o, o])
+        Rijab -= 0.5 * contract('jkac,klcd,dbli->ijab', t_ijab, t_ijab, self.MO[v, v, o, o])
+        Rijab -= 0.5 * contract('ikbc,klcd,dalj->ijab', t_ijab, t_ijab, self.MO[v, v, o, o])
+        Rijab += 0.5 * contract('jkbc,klcd,dali->ijab', t_ijab, t_ijab, self.MO[v, v, o, o])
         # 1/8 t_klcd t_ijcd <ab||kl>
-        Rijab += 0.125 * np.einsum('klcd,ijcd,abkl->ijab', t_ijab, t_ijab, self.MO[v, v, o, o])
+        Rijab += 0.125 * contract('klcd,ijcd,abkl->ijab', t_ijab, t_ijab, self.MO[v, v, o, o])
         # 1/8 t_klcd t_klab <cd||ij>
-        Rijab += 0.125 * np.einsum('klcd,klab,cdij->ijab', t_ijab, t_ijab, self.MO[v, v, o, o])
+        Rijab += 0.125 * contract('klcd,klab,cdij->ijab', t_ijab, t_ijab, self.MO[v, v, o, o])
         # - 1/4 P_ab t_klcd t_ijac <bd||kl>
-        Rijab -= 0.25 * np.einsum('klcd,ijac,bdkl->ijab', t_ijab, t_ijab, self.MO[v, v, o, o])
-        Rijab += 0.25 * np.einsum('klcd,ijbc,adkl->ijab', t_ijab, t_ijab, self.MO[v, v, o, o])
+        Rijab -= 0.25 * contract('klcd,ijac,bdkl->ijab', t_ijab, t_ijab, self.MO[v, v, o, o])
+        Rijab += 0.25 * contract('klcd,ijbc,adkl->ijab', t_ijab, t_ijab, self.MO[v, v, o, o])
         # - 1/4 P_ij t_klcd t_ikab <cd||jl>
-        Rijab -= 0.25 * np.einsum('klcd,ikab,cdjl->ijab', t_ijab, t_ijab, self.MO[v, v, o, o])
-        Rijab += 0.25 * np.einsum('klcd,jkab,cdil->ijab', t_ijab, t_ijab, self.MO[v, v, o, o])
+        Rijab -= 0.25 * contract('klcd,ikab,cdjl->ijab', t_ijab, t_ijab, self.MO[v, v, o, o])
+        Rijab += 0.25 * contract('klcd,jkab,cdil->ijab', t_ijab, t_ijab, self.MO[v, v, o, o])
         # - 1/4 P_ab t_klca t_klcd <db||ij>
-        Rijab -= 0.25 * np.einsum('klca,klcd,dbij->ijab', t_ijab, t_ijab, self.MO[v, v, o, o])
-        Rijab += 0.25 * np.einsum('klcb,klcd,daij->ijab', t_ijab, t_ijab, self.MO[v, v, o, o])
+        Rijab -= 0.25 * contract('klca,klcd,dbij->ijab', t_ijab, t_ijab, self.MO[v, v, o, o])
+        Rijab += 0.25 * contract('klcb,klcd,daij->ijab', t_ijab, t_ijab, self.MO[v, v, o, o])
         # - 1/4 P_ij t_ikdc t_klcd <ab||lj>
-        Rijab -= 0.25 * np.einsum('ikdc,klcd,ablj->ijab', t_ijab, t_ijab, self.MO[v, v, o, o])
-        Rijab += 0.25 * np.einsum('jkdc,klcd,abli->ijab', t_ijab, t_ijab, self.MO[v, v, o, o])
+        Rijab -= 0.25 * contract('ikdc,klcd,ablj->ijab', t_ijab, t_ijab, self.MO[v, v, o, o])
+        Rijab += 0.25 * contract('jkdc,klcd,abli->ijab', t_ijab, t_ijab, self.MO[v, v, o, o])
 
         # Apply denominators
         new_tia = Ria / self.d_ia
@@ -201,10 +207,10 @@ class HelperUCC4(object):
         o = slice(0, self.no_occ)
         v = slice(self.no_occ, self.no_mo)
         E_corr = ndot('ijab,ijab->', t_ijab, self.MO[o, o, v, v], prefactor=0.25)
-        temp = 0.5 * np.einsum('ikac,klcd,ijab,dblj->', t_ijab, t_ijab, t_ijab, self.MO[v, v, o, o])
-        temp += 0.0625 * np.einsum('ijab,klcd,ijcd,abkl->', t_ijab, t_ijab, t_ijab, self.MO[v, v, o, o])
-        temp -= 0.25 * np.einsum('klcd,ijab,ikdc,ablj->', t_ijab, t_ijab, t_ijab, self.MO[v, v, o, o])
-        temp -= 0.25 * np.einsum('klcd,ijab,klca,dbij->', t_ijab, t_ijab, t_ijab, self.MO[v, v, o, o])
+        temp = 0.5 * contract('ikac,klcd,ijab,dblj->', t_ijab, t_ijab, t_ijab, self.MO[v, v, o, o])
+        temp += 0.0625 * contract('ijab,klcd,ijcd,abkl->', t_ijab, t_ijab, t_ijab, self.MO[v, v, o, o])
+        temp -= 0.25 * contract('klcd,ijab,ikdc,ablj->', t_ijab, t_ijab, t_ijab, self.MO[v, v, o, o])
+        temp -= 0.25 * contract('klcd,ijab,klca,dbij->', t_ijab, t_ijab, t_ijab, self.MO[v, v, o, o])
         #E_corr -= 0.25 * temp
         return E_corr, temp
 
@@ -223,7 +229,7 @@ class HelperUCC4(object):
             rms += np.linalg.norm(new_tijab - self.t_ijab)
             print('CC Iteration: {}\t\t {}\t\t{}\t\t{}\tDIIS Size: {}'.format(i, new_e, abs(new_e - self.old_e), rms, diis.diis_size))
             if(abs(new_e - self.old_e) < e_conv and abs(rms) < r_conv):
-                print('Convergence reached.\n CCSD Correlation energy: {}\n'.format(new_e))
+                print('Convergence reached.\n UCC(4) Correlation energy: {}\n'.format(new_e))
                 print('Adding energy contribution: {}\n'.format(new_e - 0.5 * temp))
                 self.t_ia = new_tia
                 self.t_ijab = new_tijab
