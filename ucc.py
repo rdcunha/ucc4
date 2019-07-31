@@ -23,15 +23,15 @@ numpy_memory = 2
 mol = psi4.geometry("""                                                 
 0 1
 O
-H 1 1.1
-H 1 1.1 2 104.49 
+H 1 0.958
+H 1 0.958 2 104.5 
 noreorient
 symmetry c1
 """)
 
-psi4.set_options({'basis': 'STO-3g', 'scf_type': 'pk',
-                  'freeze_core': 'false', 'e_convergence': 1e-10,
-                  'd_convergence': 1e-10, 'save_jk': 'true'})
+psi4.set_options({'basis': 'STO-3G', 'scf_type': 'pk',
+                  'freeze_core': 'false', 'e_convergence': 1e-12,
+                  'd_convergence': 1e-12, 'save_jk': 'true'})
 
 # Set for CCSD
 E_conv = 1e-8
@@ -49,6 +49,7 @@ print('Nuclear repulsion energy: {}\n'.format(mol.nuclear_repulsion_energy()))
 # Create Helper_CCenergy object
 hucc = HelperUCC4(wfn) 
 
-ucc_e = hucc.do_CC(e_conv=1e-8, r_conv =1e-7, maxiter=20)
+ucc_e = hucc.do_CC(e_conv=1e-8, r_conv =1e-7, maxiter=40)
 
-print('UCC(4) Energy: {}'.format(ucc_e))
+print('UCC(4) Correlation Energy: {}'.format(ucc_e))
+print('UCC(4) Energy: {}'.format(e_scf+ucc_e))
